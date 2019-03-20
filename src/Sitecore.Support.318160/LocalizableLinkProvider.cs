@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sitecore.Data.Items;
 using Sitecore.Links;
 using Sitecore.Text;
+using Sitecore.Web;
 using Sitecore.XA.Foundation.Multisite;
 
 namespace Sitecore.Support.XA.Foundation.Multisite.LinkManagers
@@ -39,15 +40,16 @@ namespace Sitecore.Support.XA.Foundation.Multisite.LinkManagers
 
       if (!item.Paths.IsMediaItem)
       {
-        newUrl = GetLocalizedUrl(item, url, options, targetSiteName);
+        newUrl = GetLocalizedUrl(item, url, options, siteInfo);
         HttpRuntime.Cache.Insert(cacheKey, newUrl, null, DateTime.UtcNow.AddMinutes(_cacheExpiration), Cache.NoSlidingExpiration);
         return newUrl;
       }
       return url;
     }
 
-    private string GetLocalizedUrl(Item item, string url, UrlOptions options, string targetSite)
+    private string GetLocalizedUrl(Item item, string url, UrlOptions options, SiteInfo siteInfo)
     {
+      var targetSite = siteInfo?.Name;
       Uri uri = null;
       if (!url.StartsWith("/", StringComparison.Ordinal))
       {
@@ -88,7 +90,7 @@ namespace Sitecore.Support.XA.Foundation.Multisite.LinkManagers
 
       if (options.AlwaysIncludeServerUrl && uri != null)
       {
-        localizedUrl = $"{uri.Scheme}://{uri.Host}{localizedUrl}";
+        localizedUrl = $"{(string.IsNullOrEmpty(siteInfo.Scheme) ? uri.Scheme : siteInfo.Scheme)}://{uri.Host}{localizedUrl}";
       }
 
       if (!string.IsNullOrWhiteSpace(targetSite))
