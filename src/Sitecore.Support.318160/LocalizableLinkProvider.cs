@@ -28,8 +28,14 @@ namespace Sitecore.Support.XA.Foundation.Multisite.LinkManagers
 
       var siteInfo = DependencyInjection.ServiceLocator.ServiceProvider.GetService<ISiteInfoResolver>().GetSiteInfo(item);
       var targetSiteName = siteInfo?.Name;
+      var targetSiteSchecme = siteInfo?.Scheme;
 
       string cacheKey = string.Format(CacheKey, url, item.Database.Name, targetSiteName);
+      if (this.isSXA(targetSiteName, options) && !string.IsNullOrEmpty(targetSiteSchecme))
+      {
+        cacheKey += targetSiteSchecme + "_";
+      }
+
       cacheKey += options.AlwaysIncludeServerUrl ? "absolute" : "relative";
 
       string newUrl = IsEditOrPreview ? string.Empty : HttpRuntime.Cache.Get(cacheKey) as string;
@@ -42,9 +48,24 @@ namespace Sitecore.Support.XA.Foundation.Multisite.LinkManagers
       {
         newUrl = GetLocalizedUrl(item, url, options, siteInfo);
         HttpRuntime.Cache.Insert(cacheKey, newUrl, null, DateTime.UtcNow.AddMinutes(_cacheExpiration), Cache.NoSlidingExpiration);
+
         return newUrl;
       }
       return url;
+    }
+
+    private bool isSXA(string targetSite, UrlOptions options)
+    {
+      bool result = false;
+      if (!string.IsNullOrWhiteSpace(targetSite))
+      {
+        var isSxaSite = options.Site?.Properties["IsSxaSite"]?.Equals("true", StringComparison.OrdinalIgnoreCase);
+        if (isSxaSite != null)
+        {
+          result = isSxaSite.Value;
+        }
+      }
+      return result;
     }
 
     private string GetLocalizedUrl(Item item, string url, UrlOptions options, SiteInfo siteInfo)
@@ -95,8 +116,7 @@ namespace Sitecore.Support.XA.Foundation.Multisite.LinkManagers
 
       if (!string.IsNullOrWhiteSpace(targetSite))
       {
-        var isSxaSite = options.Site?.Properties["IsSxaSite"]?.Equals("true", StringComparison.OrdinalIgnoreCase);
-        if (isSxaSite != null && isSxaSite.Value && (PageMode.IsExperienceEditorEditing || PageMode.IsPreview))
+        if (this.isSXA(targetSite, options) && (PageMode.IsExperienceEditorEditing || PageMode.IsPreview))
         {
           var urlString = new UrlString(localizedUrl);
           localizedUrl = urlString.Add("sc_site", targetSite);
