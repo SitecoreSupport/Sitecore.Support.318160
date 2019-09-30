@@ -27,7 +27,7 @@
 
         public override string GetItemUrl(Item item, UrlOptions options)
         {
-            options.SiteResolving = (!IsEditOrPreview && options.SiteResolving);
+            options.SiteResolving = (!base.IsEditOrPreview && options.SiteResolving);
             options = ResolveLanguageEmbedding(item, options);
             string itemUrl = base.GetItemUrl(item, options);
             if (item.Database == null)
@@ -36,12 +36,17 @@
             }
             SiteInfo siteInfo = ServiceLocator.ServiceProvider.GetService<ISiteInfoResolver>().GetSiteInfo(item);
             string text = (siteInfo != null) ? siteInfo.Name : null;
+            string text2 = (siteInfo != null) ? siteInfo.Scheme : null;
             string str = string.Format("LLM_{0}_{1}_{2}_", itemUrl, item.Database.Name, text);
-            str += (options.AlwaysIncludeServerUrl ? "absolute" : "relative");
-            string text2 = IsEditOrPreview ? string.Empty : (HttpRuntime.Cache.Get(str) as string);
-            if (!string.IsNullOrWhiteSpace(text2))
+            if (isSXA(text, options) && !string.IsNullOrEmpty(text2))
             {
-                return text2;
+                str = str + text2 + "_";
+            }
+            str += (options.AlwaysIncludeServerUrl ? "absolute" : "relative");
+            string text3 = base.IsEditOrPreview ? string.Empty : (HttpRuntime.Cache.Get(str) as string);
+            if (!string.IsNullOrWhiteSpace(text3))
+            {
+                return text3;
             }
             if (!item.Paths.IsMediaItem)
             {
@@ -56,15 +61,41 @@
                         options.AlwaysIncludeServerUrl = true;
                     }
                 }
-                text2 = GetLocalizedUrl(item, itemUrl, options, text);
-                HttpRuntime.Cache.Insert(str, text2, null, DateTime.UtcNow.AddMinutes(_cacheExpiration), Cache.NoSlidingExpiration);
-                return text2;
+                text3 = GetLocalizedUrl(item, itemUrl, options, siteInfo);
+                HttpRuntime.Cache.Insert(str, text3, null, DateTime.UtcNow.AddMinutes(_cacheExpiration), Cache.NoSlidingExpiration);
+                return text3;
             }
             return itemUrl;
         }
 
-        private string GetLocalizedUrl(Item item, string url, UrlOptions options, string targetSite)
+        private bool isSXA(string targetSite, UrlOptions options)
         {
+            bool result = false;
+            if (!string.IsNullOrWhiteSpace(targetSite))
+            {
+                SiteContext site = options.Site;
+                bool? obj;
+                if (site == null)
+                {
+                    obj = null;
+                }
+                else
+                {
+                    string text = site.Properties["IsSxaSite"];
+                    obj = ((text != null) ? new bool?(text.Equals("true", StringComparison.OrdinalIgnoreCase)) : null);
+                }
+                bool? flag = obj;
+                if (flag.HasValue)
+                {
+                    result = flag.Value;
+                }
+            }
+            return result;
+        }
+
+        private string GetLocalizedUrl(Item item, string url, UrlOptions options, SiteInfo siteInfo)
+        {
+            string text = (siteInfo != null) ? siteInfo.Name : null;
             Uri uri = null;
             if (!url.StartsWith("/", StringComparison.Ordinal))
             {
@@ -101,26 +132,11 @@
             }
             if (options.AlwaysIncludeServerUrl && uri != null)
             {
-                str = uri.Scheme + Uri.SchemeDelimiter + uri.Host + str;
+                str = string.Format("{0}://{1}{2}", string.IsNullOrEmpty(siteInfo.Scheme) ? uri.Scheme : siteInfo.Scheme, uri.Host, str);
             }
-            if (!string.IsNullOrWhiteSpace(targetSite))
+            if (!string.IsNullOrWhiteSpace(text) && isSXA(text, options) && (base.PageMode.IsExperienceEditorEditing || base.PageMode.IsPreview))
             {
-                SiteContext site = options.Site;
-                bool? obj;
-                if (site == null)
-                {
-                    obj = null;
-                }
-                else
-                {
-                    string text = site.Properties["IsSxaSite"];
-                    obj = ((text != null) ? new bool?(text.Equals("true", StringComparison.OrdinalIgnoreCase)) : null);
-                }
-                bool? flag = obj;
-                if (flag.HasValue && flag.Value && (PageMode.IsExperienceEditorEditing || PageMode.IsPreview))
-                {
-                    str = new UrlString(str).Add("sc_site", targetSite);
-                }
+                str = new UrlString(str).Add("sc_site", text);
             }
             return str;
         }
